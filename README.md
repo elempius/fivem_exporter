@@ -1,11 +1,15 @@
 # fivem_exporter
 
-FiveM server-side Prometheus exporter resource.
-Dependency: `ox_lib`
-Auth: optional HTTP Basic auth via `Config.BasicAuth`
+## Overview
+Lightweight FiveM server-side Prometheus exporter resource.
 
-Endpoint: `https://<host>:30120/<resource_name>/metrics`
+## Requirements
+- `ox_lib`
 
-Built-in exporter metrics include:
+## Configuration
+- Auth: optional HTTP Basic auth via `Config.BasicAuth`
+- Endpoint: `https://<host>:30120/<resource_name>/metrics`
+
+## Built-in Metrics
 - `<resource>_metrics_registered`
 - `<resource>_series_total`
