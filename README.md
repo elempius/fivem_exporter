@@ -15,7 +15,7 @@ Lightweight FiveM server-side Prometheus exporter resource.
 - `<resource>_series_total`
 
 ## Example: Player Count Gauge
-Add this to a server script in your own resource (not inside `fivem_exporter`):
+Add this to a server script in your own resource.
 
 ```lua
 local exporter = exports['fivem_exporter']
