@@ -3,6 +3,10 @@ Config = {
     MaxSeriesPerMetric = 1000,
     MaxLabelsPerMetric = 10,
     MaxLabelValueLength = 128,
+    GlobalLabels = {
+        -- environment = 'production',
+        -- server = 'main'
+    },
 
     BasicAuth = {
         Enabled = false,

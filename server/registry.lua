@@ -8,6 +8,12 @@ local state = {
     metricsByName = {},
     dirty = true,
     cachedBody = '',
+    globalLabels = {
+        initialized = false,
+        names = {},
+        values = {},
+        nameSet = {}
+    },
     internal = {
         initialized = false,
         metricsGauge = nil,
@@ -25,6 +31,25 @@ local function buildLabelMap(labelNames)
         map[labelNames[i]] = true
     end
     return map
+end
+
+local function getGlobalLabels()
+    if state.globalLabels.initialized then
+        return true, state.globalLabels.names, state.globalLabels.values, state.globalLabels.nameSet
+    end
+
+    local ok, names, values, err = validate.normalizeGlobalLabels(Config.GlobalLabels)
+    if not ok then
+        return false, nil, nil, nil, err
+    end
+
+    local nameSet = buildLabelMap(names)
+    state.globalLabels.initialized = true
+    state.globalLabels.names = names
+    state.globalLabels.values = values
+    state.globalLabels.nameSet = nameSet
+
+    return true, names, values, nameSet
 end
 
 local function buildSeriesSignature(labelValues)
@@ -83,10 +108,15 @@ local function setGaugeDirect(metricName, value)
         return
     end
 
-    local signature = ''
+    local labelValues = {}
+    for i = 1, #metric.globalLabelValues do
+        labelValues[i] = metric.globalLabelValues[i]
+    end
+
+    local signature = buildSeriesSignature(labelValues)
     local series = metric.series[signature]
     if not series then
-        series = { labels = {}, value = 0 }
+        series = { labels = labelValues, value = 0 }
         metric.series[signature] = series
         metric.seriesCount = metric.seriesCount + 1
     end
@@ -166,6 +196,21 @@ function ExporterRegistry.registerMetric(metricType, metricName, help, labelName
         return false, normalizedLabelsOrErr
     end
     local normalizedLabels = normalizedLabelsOrErr
+    local globalLabelsOk, globalLabelNames, globalLabelValues, globalLabelNameSet, globalLabelErr = getGlobalLabels()
+    if not globalLabelsOk then
+        return false, globalLabelErr
+    end
+
+    if #normalizedLabels + #globalLabelNames > Config.MaxLabelsPerMetric then
+        return false, ('too many labels; max is %d (including configured global labels)'):format(Config.MaxLabelsPerMetric)
+    end
+
+    for i = 1, #normalizedLabels do
+        local labelName = normalizedLabels[i]
+        if globalLabelNameSet[labelName] then
+            return false, ('label name "%s" conflicts with configured global labels'):format(labelName)
+        end
+    end
 
     local buckets = nil
     if metricType == 'histogram' then
@@ -176,14 +221,26 @@ function ExporterRegistry.registerMetric(metricType, metricName, help, labelName
         buckets = bucketsOrErr
     end
 
+    local mergedLabelNames = {}
+    for i = 1, #normalizedLabels do
+        mergedLabelNames[#mergedLabelNames + 1] = normalizedLabels[i]
+    end
+    for i = 1, #globalLabelNames do
+        mergedLabelNames[#mergedLabelNames + 1] = globalLabelNames[i]
+    end
+
     local definition = {
         name = fullName,
         owner = owner,
         owners = { [owner] = true },
         type = metricType,
         help = help,
-        labelNames = normalizedLabels,
-        labelNameSet = buildLabelMap(normalizedLabels),
+        labelNames = mergedLabelNames,
+        userLabelNames = normalizedLabels,
+        userLabelNameSet = buildLabelMap(normalizedLabels),
+        globalLabelNames = globalLabelNames,
+        globalLabelValues = globalLabelValues,
+        globalLabelNameSet = globalLabelNameSet,
         buckets = buckets,
         series = {},
         seriesCount = 0
